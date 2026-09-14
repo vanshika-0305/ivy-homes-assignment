@@ -24,6 +24,7 @@ The API key is injected by the development proxy and is not placed in browser co
 - `src/styles.css` contains the responsive visual system.
 - `scripts/download-data.ps1` retrieves complete datasets by following the server's returned `has_more` flag.
 - `docs/investigation.md` records reproducible API observations and analysis status.
+- `src/intelligence/` contains pure feature engineering, market statistics, value scoring, similarity, anomaly, trust, and recommendation logic. It is memoized at the application boundary and does not make API calls.
 
 ## Confirmed API behavior
 
@@ -60,7 +61,21 @@ The following hypotheses were tested and not accepted as fraud rules:
 
 The fake-listing hypothesis is explicit and reproducible: 74 records contain either `token amount` or `booking amount` payment-pressure language. This is recorded as a candidate fraud rule, not as a claim that arbitrary seller/contact reuse is fraudulent. The latter was tested and rejected because it is widespread across the multi-source dataset.
 
-The confirmed documentation findings are recorded in `submission.json` and `docs/investigation.md`. They cover authentication headers, pagination and completeness, inactive records, project price units, timestamp formats, missing detail/similar/favourites/analytics routes, refresh-token behavior, duplicate physical-property groups, and project count contradictions. Locality, BHK, and price sorting probes worked and were deliberately not reported as discrepancies. Candidate name and email are populated from the supplied registration email; the public repository and deployed app URLs remain placeholders until they exist.
+The confirmed documentation findings are recorded in `submission.json` and `docs/investigation.md`. They cover authentication headers, pagination and completeness, inactive records, project price units, timestamp formats, missing detail/similar/favourites/analytics routes, refresh-token behavior, duplicate physical-property groups, and project count contradictions. Locality, BHK, and price sorting probes worked and were deliberately not reported as discrepancies. The public repository and deployment URLs are recorded in `submission.json`.
+
+## Property intelligence
+
+The existing inventory is extended with deterministic intelligence rather than a chatbot or fabricated data:
+
+- Feature engineering derives price per carpet square foot, listing age at the fixed assignment reference, locality medians, and normalized price/area metrics.
+- Value Score is an explainable 0-100 weighted score using price competitiveness, area, attributes, freshness, and verification/live status. Each score exposes reasons and warnings.
+- Similarity uses weighted normalized distance across price, price per square foot, area, BHK, bathrooms, floor, locality, furnishing, and property type. Similar listings include their matching reasons.
+- Anomaly detection flags unusual or impossible values for review. It never labels statistical anomalies as fake.
+- Trust uses `HIGH`, `REVIEW`, or `DATA ISSUE`; only the confirmed corrupt IDs from the investigation receive `DATA ISSUE`.
+- Recommendations apply hard filters first, then rank by value, lowest price, largest area, premium, or balanced priority.
+- The UI exposes compact scores on listing cards, a Property Intelligence block and similar properties on detail pages, and market opportunities, medians, anomaly counts, and confirmed data issues on Insights.
+
+No runtime ML model is used. The methodology is transparent statistical scoring and weighted nearest-neighbour similarity over the real API records.
 
 ## With another two days
 
