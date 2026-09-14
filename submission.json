@@ -1,0 +1,47 @@
+{
+  "api_key": "IVY26-18C951CC01C1",
+  "candidate": {
+    "name": "Vanshika Gautam",
+    "email": "vanshika.20233305@mnnit.ac.in",
+    "repo_url": "REPLACE_WITH_PUBLIC_GITHUB_URL",
+    "demo_url": "REPLACE_WITH_DEPLOYED_APP_URL"
+  },
+  "answers": {
+    "total_listing_records": 3800,
+    "unique_properties": 3515,
+    "active_listings": 2998,
+    "corrupt_listing_ids": [
+      "100-3000174", "100-3000236", "100-3000608", "100-3001067", "100-3001543", "100-3001548", "100-3002344", "100-3003022",
+      "DWE-3000235", "DWE-3000299", "DWE-3001307", "DWE-3001835", "DWE-3001849", "DWE-3003186", "MAG-3000020", "MAG-3000932",
+      "MAG-3001263", "MAG-3001979", "MAG-3001986", "SQU-3000026", "SQU-3000419", "SQU-3000591", "SQU-3001297", "SQU-3001698",
+      "SQU-3001738", "SQU-3003195", "ZER-3000380", "ZER-3003055"
+    ],
+    "total_monthly_rent": 5184200,
+    "avg_price_per_sqft_2bhk": 18557.42,
+    "costliest_project": { "project_id": "P30394", "price_max_inr": 999000000 },
+    "listings_last_7_days": 128,
+    "fake_listing_ids": [
+      "100-3000190", "100-3000368", "100-3000496", "100-3000879", "100-3000993", "100-3001429", "100-3001595", "100-3001997", "100-3002778", "100-3003064",
+      "DWE-3000078", "DWE-3000316", "DWE-3000925", "DWE-3001223", "DWE-3002226", "DWE-3002258", "DWE-3002401", "DWE-3002506", "DWE-3002667", "DWE-3002944", "DWE-3003454", "DWE-3003650",
+      "MAG-3000295", "MAG-3000565", "MAG-3000899", "MAG-3000975", "MAG-3000989", "MAG-3001079", "MAG-3001449", "MAG-3001722", "MAG-3002001", "MAG-3002139", "MAG-3002351", "MAG-3002945", "MAG-3003161", "MAG-3003508",
+      "SQU-3000022", "SQU-3000070", "SQU-3000106", "SQU-3000654", "SQU-3001036", "SQU-3001267", "SQU-3001363", "SQU-3001670", "SQU-3001895", "SQU-3001912", "SQU-3002029", "SQU-3002415", "SQU-3002754", "SQU-3002848", "SQU-3003274", "SQU-3003364",
+      "ZER-3000134", "ZER-3000588", "ZER-3000661", "ZER-3000663", "ZER-3001051", "ZER-3001108", "ZER-3001241", "ZER-3001323", "ZER-3001394", "ZER-3001479", "ZER-3001935", "ZER-3002254", "ZER-3002321", "ZER-3002484", "ZER-3002757", "ZER-3002805", "ZER-3002809", "ZER-3003094", "ZER-3003145", "ZER-3003303", "ZER-3003419", "ZER-3003489"
+    ],
+    "projects_with_wrong_listing_count": 317
+  },
+  "findings": [
+    { "endpoint": "*", "category": "auth", "documented": "API key is appended as api_key query parameter", "actual": "Query-only GET /v1/listings returns 401; X-API-Key header is required", "how_found": "Compared authenticated header request with query-only request", "impact": "Clients using the documented query parameter fail authentication", "evidence": [] },
+    { "endpoint": "*", "category": "pagination", "documented": "Collections use page and limit, maximum 200, with page_size", "actual": "Collections use offset and limit, return count and has_more, and cap limit 1000 to 50", "how_found": "Requested page=2 and limit=1000; inspected response envelope", "impact": "Pagination must follow returned offset/count/has_more", "evidence": [] },
+    { "endpoint": "*", "category": "completeness", "documented": "total is exact and sufficient to fetch every record", "actual": "3,800 listings, 1,450 rentals, and 440 projects were retrievable versus first-page totals 3,485, 1,330, and 404", "how_found": "Paged each endpoint until has_more=false", "impact": "Using total alone omits records", "evidence": ["DWE-3003019", "R3001450", "P30440"] },
+    { "endpoint": "/v1/listings", "category": "data_quality", "documented": "Returns active listings only", "actual": "802 retrieved records have is_live=false", "how_found": "Counted is_live values in the complete listing dataset", "impact": "Clients must filter inactive records before presenting active inventory", "evidence": ["MAG-3001979", "100-3000236", "DWE-3000235"] },
+    { "endpoint": "/v1/projects", "category": "units", "documented": "price_min and price_max are rupees", "actual": "Values are crore-scale decimals; P30394 has price_max=99.9, equivalent to INR 999,000,000", "how_found": "Inspected project price ranges and compared them with listing INR values", "impact": "Directly displaying values as rupees is off by a factor of 10,000,000", "evidence": ["P30394"] },
+    { "endpoint": "*", "category": "timestamps", "documented": "All timestamps are UTC with Z suffix", "actual": "Listings include offset-less timestamps while rentals include Z-suffixed timestamps", "how_found": "Compared posted_at fields across downloaded datasets", "impact": "Timestamp parsing needs endpoint-aware handling", "evidence": ["DWE-3002501", "R3000001"] },
+    { "endpoint": "/v1/listing/{listing_id}", "category": "missing_endpoint", "documented": "Singular listing detail path exists", "actual": "404; plural /v1/listings/{listing_id} returns the detail", "how_found": "Requested both documented and plural paths for DWE-3002501", "impact": "The documented detail URL cannot be used", "evidence": ["DWE-3002501"] },
+    { "endpoint": "/v1/listings/{listing_id}/similar", "category": "missing_endpoint", "documented": "Returns up to ten comparable listings", "actual": "404 for DWE-3002501", "how_found": "Authenticated GET probe", "impact": "Similar listings must be computed locally", "evidence": ["DWE-3002501"] },
+    { "endpoint": "/v1/favourites", "category": "missing_endpoint", "documented": "Favourite collection and mutation routes exist", "actual": "GET returns 404", "how_found": "Authenticated GET probe", "impact": "The frontend uses per-user local persistence until a supported route exists", "evidence": [] },
+    { "endpoint": "/v1/analytics/summary", "category": "missing_endpoint", "documented": "Returns pre-computed city aggregates", "actual": "404", "how_found": "Authenticated GET probe", "impact": "Insights are calculated from the downloaded dataset", "evidence": [] },
+    { "endpoint": "/auth/refresh", "category": "undocumented_endpoint", "documented": "There is no refresh flow", "actual": "POST returns a renewed access token", "how_found": "Submitted the returned refresh_token after each demo login", "impact": "Clients can renew 900-second access sessions", "evidence": [] },
+    { "endpoint": "/v1/listings", "category": "duplicates", "documented": "Each listing corresponds to exactly one physical property", "actual": "247 exact coordinate groups contain 532 listing records; normalized property grouping yields 3,515 groups from 3,800 records", "how_found": "Grouped downloaded records by apartment name, locality, latitude, and longitude", "impact": "Listing count and property count are different metrics", "evidence": ["DWE-3000009", "ZER-3000924", "SQU-3000093"] },
+    { "endpoint": "/v1/projects", "category": "consistency", "documented": "total_listings always agrees with current listings", "actual": "317 projects disagree with the downloaded listing count for their project_id", "how_found": "Joined all project records to all downloaded listings", "impact": "Project listing counts cannot be trusted without recomputation", "evidence": ["P30003", "P30008", "P30394"] }
+  ]
+}

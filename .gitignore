@@ -1,0 +1,6 @@
+.env
+.env.*
+data/raw/
+node_modules/
+dist/
+*.tsbuildinfo
