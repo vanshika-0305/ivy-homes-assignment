@@ -8,6 +8,9 @@ import { getAnomaly } from "./intelligence/anomaly";
 import { getSimilarListings } from "./intelligence/similarity";
 import { getTrust } from "./intelligence/trust";
 import { getValueScore } from "./intelligence/valueScore";
+import { parseIntent } from "./intelligence/intent";
+import { getRecommendedProperties } from "./intelligence/recommendations";
+import type { RecommendationPreferences } from "./intelligence/types";
 
 type View = "listings" | "saved" | "rentals" | "projects" | "insights";
 const money = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
@@ -40,8 +43,13 @@ function App() {
   const [rentalQuery, setRentalQuery] = useState("");
   const [rentalLocality, setRentalLocality] = useState("all");
   const [rentalFurnishing, setRentalFurnishing] = useState("all");
+  const [intentQuery, setIntentQuery] = useState("");
+  const [intentPreferences, setIntentPreferences] = useState<RecommendationPreferences | null>(null);
+  const [intentSource, setIntentSource] = useState<"grok" | "local" | null>(null);
+  const [intentLoading, setIntentLoading] = useState(false);
   const marketStats = useMemo(() => getMarketStats(listings), [listings]);
   const intelligence = useMemo(() => deriveFeatures(listings, marketStats), [listings, marketStats]);
+  const recommendedListings = useMemo(() => intentPreferences ? getRecommendedProperties(listings, intelligence, intentPreferences).slice(0, 12) : [], [listings, intelligence, intentPreferences]);
 
   const load = async (current: Session) => { setLoading(true); setError(""); try { const [nextListings, nextRentals, nextProjects] = await Promise.all([getListings(current), getRentals(current), getProjects(current)]); setListings(nextListings); setRentals(nextRentals); setProjects(nextProjects); } catch (err) { try { const renewed = await refresh(current); setSession(renewed); const [nextListings, nextRentals, nextProjects] = await Promise.all([getListings(renewed), getRentals(renewed), getProjects(renewed)]); setListings(nextListings); setRentals(nextRentals); setProjects(nextProjects); } catch (retryError) { setError(retryError instanceof Error ? retryError.message : String(err)); } } finally { setLoading(false); } };
   useEffect(() => { if (session) { setSaved(JSON.parse(localStorage.getItem(`ivy-saved-${session.email}`) || "[]")); void load(session); } }, [session]);
@@ -59,6 +67,20 @@ function App() {
   const localities = useMemo(() => [...new Set(listings.map((listing) => listing.locality))].sort(), [listings]);
   const filteredListings = useMemo(() => listings.filter((listing) => `${listing.apartment_name} ${listing.locality} ${listing.description}`.toLowerCase().includes(query.toLowerCase()) && (bedroom === "all" || listing.bedroom === Number(bedroom)) && (locality === "all" || listing.locality === locality) && (furnishing === "all" || listing.furnishing === furnishing) && (!minPrice || listing.price >= Number(minPrice)) && (!maxPrice || listing.price <= Number(maxPrice))), [listings, query, bedroom, locality, furnishing, minPrice, maxPrice]);
   const toggleSaved = (id: string) => setSaved((current) => { const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]; localStorage.setItem(`ivy-saved-${session?.email ?? "anonymous"}`, JSON.stringify(next)); return next; });
+  const runIntentSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!intentQuery.trim()) return;
+    setIntentLoading(true);
+    const result = await parseIntent(intentQuery);
+    setIntentPreferences(result.preferences);
+    setIntentSource(result.source);
+    setBedroom(result.preferences.bedroom ? String(result.preferences.bedroom) : "all");
+    setLocality(result.preferences.locality ?? "all");
+    setFurnishing(result.preferences.furnishing ?? "all");
+    setMinPrice(result.preferences.minPrice ? String(result.preferences.minPrice) : "");
+    setMaxPrice(result.preferences.maxPrice ? String(result.preferences.maxPrice) : "");
+    setIntentLoading(false);
+  };
   if (!session) return <Login onLogin={setSession} />;
   if (selectedListing) return <ListingDetail listing={selectedListing} saved={saved.includes(selectedListing.listing_id)} onSave={toggleSaved} features={intelligence} listings={listings} />;
   if (selectedProject) return <ProjectDetail project={selectedProject} />;
